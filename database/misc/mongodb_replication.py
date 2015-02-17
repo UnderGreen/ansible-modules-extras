@@ -267,6 +267,7 @@ def main():
             if state == 'present':
                 config = { '_id': "{0}".format(replica_set), 'members': [{ '_id': 0, 'host': "{0}:{1}".format(host_name, host_port)}] }
                 client['admin'].command('replSetInitiate', config)
+                time.sleep(3)
                 replica_set_created = True
                 module.exit_json(changed=True, host_name=host_name, host_port=host_port, host_type=host_type)
         except OperationFailure, e:
