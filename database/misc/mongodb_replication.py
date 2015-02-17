@@ -20,9 +20,9 @@
 DOCUMENTATION = '''
 ---
 module: mongodb_replication
-short_description: Adds or removes a user from a MongoDB database.
+short_description: Adds or removes a node from a MongoDB Replica Set.
 description:
-    - Adds or removes hosts from a MongoDB replica set. Initialize replica if it needed.
+    - Adds or removes host from a MongoDB replica set. Initialize replica set if it needed.
 options:
     login_user:
         description:
@@ -45,7 +45,6 @@ options:
         required: false
         default: 27017
     replica_set:
-        version_added: "1.6"
         description:
             - Replica set to connect to (automatically connects to primary for writes)
         required: false
@@ -66,7 +65,6 @@ options:
         default: replica
         choices: [ "replica", "arbiter" ]
     ssl:
-        version_added: "1.8"
         description:
             - Whether to use an SSL connection when connecting to the database
         default: False
