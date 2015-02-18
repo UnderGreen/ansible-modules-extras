@@ -163,6 +163,7 @@ def add_host(module, client, host_name, host_port, host_type):
         new_host['arbiterOnly'] = True
 
     cfg['members'].append(new_host)
+    wait_for_ok(client)
     admin_db.command('replSetReconfig', cfg)
 
 def remove_host(module, client, host_name):
@@ -186,6 +187,8 @@ def remove_host(module, client, host_name):
         else:
             fail_msg = "couldn't find member with hostname: {0} in replica set members list".format(host_name)
             module.fail_json(msg=fail_msg)
+
+    wait_for_ok(client)
     admin_db.command('replSetReconfig', cfg)
 
 def load_mongocnf():
@@ -202,6 +205,18 @@ def load_mongocnf():
         return False
 
     return creds
+
+def wait_for_ok(client, timeout = 120):
+    while True:
+        status = client.admin.command('replSetGetStatus', check=False)
+        if status['ok'] == 1:
+            return
+
+        timeout = timeout - 1
+        if timeout == 0:
+            raise Exception('reached timeout while waiting for rs.status() to become ok=1')
+
+        time.sleep(1)
 
 def authenticate(client, login_user, login_password):
     if login_user is None and login_password is None:
@@ -267,7 +282,7 @@ def main():
             if state == 'present':
                 config = { '_id': "{0}".format(replica_set), 'members': [{ '_id': 0, 'host': "{0}:{1}".format(host_name, host_port)}] }
                 client['admin'].command('replSetInitiate', config)
-                time.sleep(3)
+                wait_for_ok(client)
                 replica_set_created = True
                 module.exit_json(changed=True, host_name=host_name, host_port=host_port, host_type=host_type)
         except OperationFailure, e:
