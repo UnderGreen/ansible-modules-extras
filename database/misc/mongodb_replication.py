@@ -68,10 +68,38 @@ options:
         description:
             - Whether to use an SSL connection when connecting to the database
         default: False
+    build_indexes:
+        description:
+            - Determines whether the mongod builds indexes on this member.
+        required: false
+        default: true
+    hidden:
+        description:
+            - When this value is true, the replica set hides this instance,
+              and does not include the member in the output of db.isMaster()
+              or isMaster
+        required: false
+        default: false
+    priority:
+        description:
+            - A number that indicates the relative eligibility of a member
+              to become a primary
+        required: false
+        default: 1.0
+    slave_delay:
+        description:
+            - The number of seconds “behind” the primary that this replica set
+              member should “lag”
+        required: false
+        default: 0
+    votes:
+        description:
+            - The number of votes a server will cast in a replica set election
+        default: 1
     state:
         state:
         description:
-            - The database user state
+            - The replica set member state
         required: false
         default: present
         choices: [ "present", "absent" ]
