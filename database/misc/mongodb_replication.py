@@ -146,7 +146,7 @@ def check_members(state, module, client, host_name, host_port, host_type):
                 if "{0}:{1}".format(host_name, host_port) not in member['host'] and member['arbiterOnly']:
                     module.exit_json(changed=False, host_name=host_name, host_port=host_port, host_type=host_type)
 
-def add_host(module, client, host_name, host_port, host_type, timeout=180):
+def add_host(module, client, host_name, host_port, host_type, timeout=180, **kwargs):
     while True:
         try:
             admin_db = client['admin']
@@ -164,6 +164,21 @@ def add_host(module, client, host_name, host_port, host_type, timeout=180):
             new_host = { '_id': max_id['_id'] + 1, 'host': "{0}:{1}".format(host_name, host_port) }
             if host_type == 'arbiter':
                 new_host['arbiterOnly'] = True
+
+            if not kwargs['build_indexes']:
+                new_host['buildIndexes'] = False
+
+            if kwargs['hidden']:
+                new_host['hidden'] = True
+
+            if kwargs['priority'] != 1.0:
+                new_host['priority'] = kwargs['priority']
+
+            if kwargs['slave_delay'] != 0:
+                new_host['slaveDelay'] = kwargs['slave_delay']
+
+            if kwargs['votes'] != 1:
+                new_host['votes'] = kwargs['votes']
 
             cfg['members'].append(new_host)
             admin_db.command('replSetReconfig', cfg)
@@ -257,6 +272,11 @@ def main():
             host_port=dict(default='27017'),
             host_type=dict(default='replica', choices=['replica','arbiter']),
             ssl=dict(default=False),
+            build_indexes = dict(type='bool', choices=BOOLEANS, default='yes'),
+            hidden = dict(type='bool', choices=BOOLEANS, default='no'),
+            priority = dict(default='1.0'),
+            slave_delay = dict(type='int', default='0'),
+            votes = dict(type='int', default='1'),
             state=dict(default='present', choices=['absent', 'present']),
         )
     )
@@ -308,7 +328,12 @@ def main():
 
         try:
             if not replica_set_created:
-                add_host(module, client, host_name, host_port, host_type)
+                add_host(module, client, host_name, host_port, host_type,
+                        build_indexes   = module.params['build_indexes'],
+                        hidden          = module.params['hidden'],
+                        priority        = float(module.params['priority']),
+                        slave_delay     = module.params['slave_delay'],
+                        votes           = module.params['votes'])
         except OperationFailure, e:
             module.fail_json(msg='Unable to add new member to replica set: %s' % str(e))
 
