@@ -88,8 +88,8 @@ options:
         default: 1.0
     slave_delay:
         description:
-            - The number of seconds “behind” the primary that this replica set
-              member should “lag”
+            - The number of seconds behind the primary that this replica set 
+              member should lag
         required: false
         default: 0
     votes:
