@@ -323,8 +323,6 @@ def main():
     ssl = module.params['ssl']
     state = module.params['state']
 
-    replica_set_created = False
-
     try:
         if replica_set is None:
             module.fail_json(msg='replica_set parameter is required')
@@ -343,7 +341,6 @@ def main():
                 config = { '_id': "{0}".format(replica_set), 'members': [{ '_id': 0, 'host': "{0}:{1}".format(host_name, host_port)}] }
                 client['admin'].command('replSetInitiate', config)
                 wait_for_ok_and_master(module, client)
-                replica_set_created = True
                 module.exit_json(changed=True, host_name=host_name, host_port=host_port, host_type=host_type)
         except OperationFailure, e:
             module.fail_json(msg='Unable to initiate replica set: %s' % str(e))
@@ -351,17 +348,16 @@ def main():
     check_members(state, module, client, host_name, host_port, host_type)
 
     if state == 'present':
-        if host_name is None and not replica_set_created:
+        if host_name is None:
             module.fail_json(msg='host_name parameter required when adding new host into replica set')
 
         try:
-            if not replica_set_created:
-                add_host(module, client, host_name, host_port, host_type,
-                        build_indexes   = module.params['build_indexes'],
-                        hidden          = module.params['hidden'],
-                        priority        = float(module.params['priority']),
-                        slave_delay     = module.params['slave_delay'],
-                        votes           = module.params['votes'])
+            add_host(module, client, host_name, host_port, host_type,
+                    build_indexes   = module.params['build_indexes'],
+                    hidden          = module.params['hidden'],
+                    priority        = float(module.params['priority']),
+                    slave_delay     = module.params['slave_delay'],
+                    votes           = module.params['votes'])
         except OperationFailure, e:
             module.fail_json(msg='Unable to add new member to replica set: %s' % str(e))
 
