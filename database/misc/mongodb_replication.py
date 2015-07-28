@@ -238,8 +238,7 @@ def remove_host(module, client, host_name, timeout=180):
                 if host_name in member['host']:
                     cfg['members'].remove(member)
                 else:
-                    fail_msg = "couldn't find member with hostname: {0} in replica set members list".format(host_name)
-                    module.fail_json(msg=fail_msg)
+                    module.exit_json(changed=False, "Replica Set Member %s already removed." % host_name)
         except (OperationFailure, AutoReconnect) as e:
             timeout = timeout - 5
             if timeout <= 0:
