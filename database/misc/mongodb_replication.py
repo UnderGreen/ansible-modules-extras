@@ -108,7 +108,7 @@ notes:
     - Requires the pymongo Python package on the remote host, version 3.0+. It
       can be installed using pip or the OS package manager. @see http://api.mongodb.org/python/current/installation.html
 requirements: [ "pymongo" ]
-author: Sergei Antipov
+author: "Sergei Antipov @UnderGreen"
 '''
 
 EXAMPLES = '''
@@ -136,6 +136,7 @@ try:
     from pymongo.errors import OperationFailure
     from pymongo.errors import ConfigurationError
     from pymongo.errors import AutoReconnect
+    from pymongo.errors import ServerSelectionTimeoutError
     from pymongo import version as PyMongoVersion
     from pymongo import MongoClient
     from pymongo import MongoReplicaSetClient
@@ -338,13 +339,13 @@ def main():
         if replica_set is None:
             module.fail_json(msg='replica_set parameter is required')
         else:
-            client = MongoClient(login_host, int(login_port), replicaSet=replica_set, ssl=ssl)
+            client = MongoClient(login_host, int(login_port), replicaSet=replica_set,
+                                 ssl=ssl, serverSelectionTimeoutMS=5000)
 
         authenticate(client, login_user, login_password)
+        client['admin'].command('replSetGetStatus')
 
-    except ConnectionFailure, e:
-        module.fail_json(msg='unable to connect to database: %s' % str(e))
-    if not client.primary:
+    except ServerSelectionTimeoutError:
         try:
             client = MongoClient(login_host, int(login_port), ssl=ssl)
             authenticate(client, login_user, login_password)
@@ -358,6 +359,8 @@ def main():
                 module.exit_json(changed=True, host_name=host_name, host_port=host_port, host_type=host_type)
         except OperationFailure, e:
             module.fail_json(msg='Unable to initiate replica set: %s' % str(e))
+    except ConnectionFailure, e:
+        module.fail_json(msg='unable to connect to database: %s' % str(e))
 
     check_compatibility(module, client)
     check_members(state, module, client, host_name, host_port, host_type)
