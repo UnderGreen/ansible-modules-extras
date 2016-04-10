@@ -88,7 +88,7 @@ options:
         default: 1.0
     slave_delay:
         description:
-            - The number of seconds behind the primary that this replica set 
+            - The number of seconds behind the primary that this replica set
               member should lag
         required: false
         default: 0
@@ -104,7 +104,7 @@ options:
         default: present
         choices: [ "present", "absent" ]
 notes:
-    - Requires the pymongo Python package on the remote host, version 2.4.2+. This
+    - Requires the pymongo Python package on the remote host, version 3.0+. It
       can be installed using pip or the OS package manager. @see http://api.mongodb.org/python/current/installation.html
 requirements: [ "pymongo" ]
 author: Sergei Antipov
@@ -146,6 +146,12 @@ else:
 # =========================================
 # MongoDB module specific support methods.
 #
+def check_compatibility(module, client):
+    if LooseVersion(PyMongoVersion) <= LooseVersion('3.0'):
+        module.fail_json(msg='Note: you must use pymongo 3.0+')
+    srv_info = client.server_info()
+    if LooseVersion(srv_info['version']) >= LooseVersion('3.2') and LooseVersion(PyMongoVersion) <= LooseVersion('3.2'):
+        module.fail_json(msg=' (Note: you must use pymongo 3.2+ with MongoDB >= 3.2)')
 
 def check_members(state, module, client, host_name, host_port, host_type):
     admin_db = client['admin']
@@ -238,7 +244,8 @@ def remove_host(module, client, host_name, timeout=180):
                 if host_name in member['host']:
                     cfg['members'].remove(member)
                 else:
-                    module.exit_json(changed=False, host_name=host_name)
+                    fail_msg = "couldn't find member with hostname: {0} in replica set members list".format(host_name)
+                    module.fail_json(msg=fail_msg)
         except (OperationFailure, AutoReconnect) as e:
             timeout = timeout - 5
             if timeout <= 0:
@@ -283,6 +290,7 @@ def authenticate(client, login_user, login_password):
 
     if login_user is not None and login_password is not None:
         client.admin.authenticate(login_user, login_password)
+
 # =========================================
 # Module execution.
 #
@@ -298,9 +306,9 @@ def main():
             host_name=dict(default='localhost'),
             host_port=dict(default='27017'),
             host_type=dict(default='replica', choices=['replica','arbiter']),
-            ssl=dict(default=False),
-            build_indexes = dict(type='bool', choices=BOOLEANS, default='yes'),
-            hidden = dict(type='bool', choices=BOOLEANS, default='no'),
+            ssl=dict(default='false'),
+            build_indexes = dict(type='bool', default='yes'),
+            hidden = dict(type='bool', default='no'),
             priority = dict(default='1.0'),
             slave_delay = dict(type='int', default='0'),
             votes = dict(type='int', default='1'),
@@ -321,42 +329,50 @@ def main():
     host_type = module.params['host_type']
     ssl = module.params['ssl']
     state = module.params['state']
+    priority = float(module.params['priority'])
+
+    replica_set_created = False
 
     try:
         if replica_set is None:
             module.fail_json(msg='replica_set parameter is required')
         else:
-            client = MongoReplicaSetClient(login_host, int(login_port), replicaSet=replica_set, ssl=ssl)
+            client = MongoClient(login_host, int(login_port), replicaSet=replica_set, ssl=ssl)
 
         authenticate(client, login_user, login_password)
 
     except ConnectionFailure, e:
         module.fail_json(msg='unable to connect to database: %s' % str(e))
-    except ConfigurationError:
+    if not client.primary:
         try:
             client = MongoClient(login_host, int(login_port), ssl=ssl)
             authenticate(client, login_user, login_password)
             if state == 'present':
-                config = { '_id': "{0}".format(replica_set), 'members': [{ '_id': 0, 'host': "{0}:{1}".format(host_name, host_port)}] }
+                new_host = { '_id': 0, 'host': "{0}:{1}".format(host_name, host_port) }
+                if priority != 1.0: new_host['priority'] = priority
+                config = { '_id': "{0}".format(replica_set), 'members': [new_host] }
                 client['admin'].command('replSetInitiate', config)
                 wait_for_ok_and_master(module, client)
+                replica_set_created = True
                 module.exit_json(changed=True, host_name=host_name, host_port=host_port, host_type=host_type)
         except OperationFailure, e:
             module.fail_json(msg='Unable to initiate replica set: %s' % str(e))
 
+    check_compatibility(module, client)
     check_members(state, module, client, host_name, host_port, host_type)
 
     if state == 'present':
-        if host_name is None:
+        if host_name is None and not replica_set_created:
             module.fail_json(msg='host_name parameter required when adding new host into replica set')
 
         try:
-            add_host(module, client, host_name, host_port, host_type,
-                    build_indexes   = module.params['build_indexes'],
-                    hidden          = module.params['hidden'],
-                    priority        = float(module.params['priority']),
-                    slave_delay     = module.params['slave_delay'],
-                    votes           = module.params['votes'])
+            if not replica_set_created:
+                add_host(module, client, host_name, host_port, host_type,
+                        build_indexes   = module.params['build_indexes'],
+                        hidden          = module.params['hidden'],
+                        priority        = float(module.params['priority']),
+                        slave_delay     = module.params['slave_delay'],
+                        votes           = module.params['votes'])
         except OperationFailure, e:
             module.fail_json(msg='Unable to add new member to replica set: %s' % str(e))
 
