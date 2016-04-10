@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-# (c) 2015, Sergei Antipov, 2GIS LLC
+# (c) 2015-2016, Sergei Antipov, 2GIS LLC
 #
 # This file is part of Ansible
 #
@@ -217,7 +217,7 @@ def add_host(module, client, host_name, host_port, host_type, timeout=180, **kwa
             cfg['members'].append(new_host)
             admin_db.command('replSetReconfig', cfg)
             return
-        except (OperationFailure, AutoReconnect) as e:
+        except (OperationFailure, AutoReconnect), e:
             timeout = timeout - 5
             if timeout <= 0:
                 module.fail_json(msg='reached timeout while waiting for rs.reconfig(): %s' % str(e))
@@ -246,7 +246,7 @@ def remove_host(module, client, host_name, timeout=180):
                 else:
                     fail_msg = "couldn't find member with hostname: {0} in replica set members list".format(host_name)
                     module.fail_json(msg=fail_msg)
-        except (OperationFailure, AutoReconnect) as e:
+        except (OperationFailure, AutoReconnect), e:
             timeout = timeout - 5
             if timeout <= 0:
                 module.fail_json(msg='reached timeout while waiting for rs.reconfig(): %s' % str(e))
